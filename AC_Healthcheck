@@ -1,0 +1,1103 @@
+############# CONFIGURATION ################
+# Set to 1 to only email the log if a failure occurs
+# A failure is anything but passed
+set EMAIL_ONLY_ON_FAILURE "1"
+
+# List of email addresses to send the health check log
+# Put a space between multiple email addresses
+set EMAIL_TO "sample@sample.com"
+
+# Set the timeout execution in seconds
+set timeout 300
+
+############### THRESHOLDS #################
+# Result of Ping statistics to Cavium and iSpan cards
+set PING_PASS " 0% packet loss"
+
+# The amount of used memory the MF process should not exceed
+set MF_MEM_THRESHOLD 14000000
+
+# Number of seconds allowable between the max and min start times for all asp processes
+set PROCESS_TIME_THRESHOLD 600  
+
+# The amount of disk space, in kilobytes, the root file system should maintain
+set ROOTFS_SPACE_THRESHOLD 2097152
+
+# The amount of disk space, percentage wise, that any partition on the card's filesystem should not exceed
+set MGC_SPACE_PERCENT_THRESHOLD 90
+set  SC_SPACE_PERCENT_THRESHOLD 1
+set CCC_SPACE_PERCENT_THRESHOLD 1
+
+# The amount of disk space, in kilobytes, that overall filesystem should not exceed
+set DISK_USAGE_THRESHOLD 3145728
+
+# The amount of memory, in kilobytes, that no process should exceed
+set PROCESS_MEMORY_THRESHOLD 512000
+
+# The CAVIUM Buffer thresholds.
+set PACKET_BUFFER_THRESHOLD 1000
+set WQE_BUFFER_THRESHOLD 2000
+
+# The amount of free memory (free + cache) each card should maintain
+set MGC_MEMORY_THRESHOLD 2097152
+set  SC_MEMORY_THRESHOLD 2097152
+set CCC_MEMORY_THRESHOLD 2097152
+
+########## APPLICATION VARIABLES ###########
+########### DO NOT CHANGE THESE ############
+set AC_HEALTHCHECK "/tmp/ac_healthcheck-$tc_device_ip$"
+set AC_HEALTHCHECK_LOG "/tmp/ac_healthcheck_log-$tc_device_ip$"
+set AC_HEALTHCHECK_CMDFILE "/tmp/ac_healthcheck_cmd"
+set AC_LDAVG_LOG "/var/log/ac_ldavg/$tc_device_hostname$-ldavg.csv"
+set LDAVG_SCRIPT_LOG "/tmp/ldavg_script_log-$tc_device_ip$"
+set TS_DATE "-1"
+set TS_TIME "-1"
+
+set MGC_CSCN_STATE5 "-1"
+set MGC_PSCN_STATE5 "-1"
+set MGC_CSCN_STATE6 "-1"
+set MGC_PSCN_STATE6 "-1"
+set MGC1_CSPS_ERROR "-1"
+set MGC1_OMCR_CONNECTED "-1"
+set MGC1_ROOTFS_SPACE "-1"
+set MGC1_SPACE_PERCENT "-1"
+set MGC1_DISK_USAGE "-1"
+set MGC1_PROCESS_TIME "-1"
+set MGC1_PROCESS_MEMORY "-1"
+set MGC1_FREE_MEMORY "-1"
+set MGC2_CSPS_ERROR "-1"
+set MGC2_OMCR_CONNECTED "-1"
+set MGC2_ROOTFS_SPACE "-1"
+set MGC2_SPACE_PERCENT "-1"
+set MGC_2DISK_USAGE "-1"
+set MGC2_PROCESS_TIME "-1"
+set MGC2_PROCESS_MEMORY "-1"
+set MGC2_FREE_MEMORY "-1"
+set MGC_PACKET_BUFFER_CAV1 "-1"
+set MGC_WQE_BUFFER_CAV1 "-1"
+set MGC_PACKET_BUFFER_CAV2 "-1"
+set MGC_WQE_BUFFER_CAV2 "-1"
+
+set SC1_APCONN_ERROR "-1"
+set SC1_PROCESS_TIME "-1"
+set SC1_PROCESS_MEMORY "-1"
+set SC1_SPACE_PERCENT "-1"
+set SC1_DISK_USAGE "-1"
+set SC1_FREE_MEMORY "-1"
+set SC2_APCONN_ERROR "-1"
+set SC2_PROCESS_TIME "-1"
+set SC2_PROCESS_MEMORY "-1"
+set SC2_SPACE_PERCENT "-1"
+set SC2_DISK_USAGE "-1"
+set SC2_FREE_MEMORY "-1"
+
+set CCC1_PROCESS_TIME "-1"
+set CCC1_PROCESS_MEMORY "-1"
+set CCC1_SPACE_PERCENT "-1"
+set CCC1_DISK_USAGE "-1"
+set CCC1_FREE_MEMORY "-1"
+set CCC1_SOIP_COUNT "-1"
+set CCC2_PROCESS_TIME "-1"
+set CCC2_PROCESS_MEMORY "-1"
+set CCC2_SPACE_PERCENT "-1"
+set CCC2_DISK_USAGE "-1"
+set CCC2_FREE_MEMORY "-1"
+set CCC2_SOIP_COUNT "-1"
+
+set CAV_CARD1 "-1"
+set CAV_CARD2 "-1"
+set ISPAN_CARD "-1"
+set MF_MEM_USAGE_CAV1 "-1"
+set MF_MEM_USAGE_CAV2 "-1"
+
+set HEALTHCHECK_STATUS "1"
+
+set MGC1_LDAVG1 "-1"
+set MGC1_LDAVG5 "-1"
+set MGC1_LDAVG15 "-1"
+set MGC2_LDAVG1 "-1"
+set MGC2_LDAVG5 "-1"
+set MGC2_LDAVG15 "-1"
+
+set SC1_LDAVG1 "-1"
+set SC1_LDAVG5 "-1"
+set SC1_LDAVG15 "-1"
+set SC2_LDAVG1 "-1"
+set SC2_LDAVG5 "-1"
+set SC2_LDAVG15 "-1"
+
+set CCC1_LDAVG1 "-1"
+set CCC1_LDAVG5 "-1"
+set CCC1_LDAVG15 "-1"
+set CCC2_LDAVG1 "-1"
+set CCC2_LDAVG5 "-1"
+set CCC2_LDAVG15 "-1"
+
+set STATUS_COUNT(pass) 0
+set STATUS_COUNT(fail) 0
+set STATUS_COUNT(na) 0
+
+log_file -noappend $AC_HEALTHCHECK_LOG
+
+proc process_time {} {
+    #Get ASP Process information
+    #Used sp instead of asp in order to not filter out ./sisp_amf, the master process for asp
+    send "ps aux|grep sp|grep -v wget\r"
+    expect "root@*>"
+        
+    log_user 0
+    set PROCESS_TIME "-1"
+    #Get the start times of all asp process
+    #Find the max and min times out of all the process and subtract the two start time times
+    #This will give you the amount of time between the first and last started processes
+    send "ps -e -olstart=,args= | grep sp | grep -v wget | grep -v grep | grep -v snapshot | grep -v debug | \
+          awk '{system(\"date -d\\\"\"\$1\" \"\$2\" \"\$3\" \"\$4\" \"\$5\"\\\" +%s\")}' | \
+          sort | uniq | awk 'BEGIN { min=0; max=0; } { if (\$1 > max) { max = \$1 } \
+          if (\$1 < min || min == 0) { min = \$1 } } END { print max - min}'\r"
+    expect -re ".*\n(\[0-9]+).*root@.*>" {
+       set PROCESS_TIME $expect_out(1,string)
+    }
+    log_user 1
+    return $PROCESS_TIME
+}
+
+proc process_memory {} {
+    global PROCESS_MEMORY_THRESHOLD
+    log_user 0
+    set PROCESS_MEMORY "-1"
+    #Get the count of all processes that have exceeded a certain limit ($PROCESSS_MEMORY)
+    send "ps -e -orss=,args= | sort -b -k1,1n | pr -TW\$COLUMNS | awk '(\$1 > $PROCESS_MEMORY_THRESHOLD){ print \$1 }' | wc -l\r" 
+    expect -re ".*\n(\[0-9]+).*root@.*>" {
+       set PROCESS_MEMORY $expect_out(1,string)
+    }
+    log_user 1
+    return $PROCESS_MEMORY
+}
+
+proc root_filespace {} {
+    log_user 0
+    set ROOTFS_SPACE "-1"
+    #Get the disk space available, in kilobytes, for the rootfs partition
+    send "df | grep rootfs | awk '{print \$4}'\r"
+    expect -re ".*\n(\[0-9]+).*root@.*>" {
+       set ROOTFS_SPACE $expect_out(1,string)
+    }
+    log_user 1
+    return $ROOTFS_SPACE
+}
+
+proc partition_percent_used {PERCENT} {
+    #Get Filesytem Usage
+    send "df -h\r"
+    expect "root@*>"
+
+    log_user 0
+    set PERCENT_USED "-1"
+    #Get the count of partitions that have exceeded a certain disk space use percent ($PARTITION_SPACE_PER)
+    send "df | grep -v Filesystem | sed 's/%//g' | awk '{if(\$5 > $PERCENT){print \$5}}' | wc -l\r"
+    expect -re ".*\n(\[0-9]+).*root@.*>" {
+       set PERCENT_USED $expect_out(1,string)
+    }
+    log_user 1
+    return $PERCENT_USED
+}
+
+proc root_disk_usage {} {
+    #Get Disk Usage
+    send "du -cshx /\r"
+    expect "root@*>"
+
+    log_user 0
+    set DISK_USAGE "-1"
+    #Get the disk usage, in kilobytes, for the root directory
+    send "du -csx /\r"
+    expect -re ".*\n(\[0-9]+).*root@.*>" {
+       set DISK_USAGE $expect_out(1,string)
+    }
+    log_user 1
+    return $DISK_USAGE
+}
+
+proc free_memory {} {
+    #Get Top Processes
+    send "top -b -n 1\r"
+    expect "root@*>"
+    send "\r"
+    expect "root@*>"
+    
+    log_user 0
+    #Get the total memory available (free and cache)
+    set FREE_MEMORY "-1"
+    send "vmstat -s | grep \"free memory\\|swap cache\" | awk 'BEGIN { mem=0 } {mem = mem + \$1} END {print mem}'\r"
+    expect -re ".*\n(\[0-9]+).*root@.*>" {
+       set FREE_MEMORY $expect_out(1,string)
+    }
+    log_user 1
+    return $FREE_MEMORY
+}
+
+proc LDAVG1 {} {
+    log_user 0
+    #Get Load Averages from top    
+#    send  "top -b -n 1 | grep \"load average\" | awk '{print \$12, \$13, \$14\",\"}'\r"
+    send "top -b -n 1 | awk '\/load average\/ {if (\$10 == \"load\") print \$12, \$13, \$14\",\"; else print \$10, \$11, \$12\",\"}'\r"
+    
+    expect -re "(\[0-9]+.\[0-9]+), (\[0-9]+.\[0-9]+), (\[0-9]+.\[0-9]+)," {
+        set LDAVG1 $expect_out(1,string)
+    }
+    log_user 1
+    return $LDAVG1
+}
+
+proc LDAVG5 {} {
+    log_user 0
+    #Get Load Averages from top    
+#    send  "top -b -n 1 | grep \"load average\" | awk '{print \$12, \$13, \$14\",\"}'\r"
+    send "top -b -n 1 | awk '\/load average\/ {if (\$10 == \"load\") print \$12, \$13, \$14\",\"; else print \$10, \$11, \$12\",\"}'\r"
+
+    expect -re "(\[0-9]+.\[0-9]+), (\[0-9]+.\[0-9]+), (\[0-9]+.\[0-9]+)," {
+        set LDAVG5 $expect_out(2,string)
+    }
+    log_user 1
+    return $LDAVG5
+}
+
+proc LDAVG15 {} {
+    log_user 0
+    #Get Load Averages from top    
+#    send  "top -b -n 1 | grep \"load average\" | awk '{print \$12, \$13, \$14\",\"}'\r"
+    send "top -b -n 1 | awk '\/load average\/ {if (\$10 == \"load\") print \$12, \$13, \$14\",\"; else print \$10, \$11, \$12\",\"}'\r"
+
+    expect -re "(\[0-9]+.\[0-9]+), (\[0-9]+.\[0-9]+), (\[0-9]+.\[0-9]+)," {
+        set LDAVG15 $expect_out(3,string)
+    }
+    log_user 1
+    return $LDAVG15
+}
+
+send_user "############################################\n"
+send_user "# $tc_device_hostname$ Health Check Log\n"
+send_user "############################################\n"
+
+spawn -noecho ssh root@$tc_device_ip$
+#expect "*?assword:*" {
+#send "root\r"
+expect -re "Are you sure you want to continue connecting" {
+   send "yes\r"
+}
+
+expect "root@*>" {
+
+
+#Set Timestamp
+send "date +%D\r"
+expect -re ".*\n(\[0-9]+/\[0-9]+/\[0-9]+).*root@.*>" {
+   set TS_DATE $expect_out(1,string)
+}
+send "date +%R\r"
+expect -re ".*\n(\[0-9]+:\[0-9]+).*root@.*>" {
+   set TS_TIME $expect_out(1,string)
+}
+
+send "\r"
+
+############################################
+############## Cavium Cards ##################
+############################################
+send "\r"
+expect "root@*>" {
+    exp_send "ping -s 1400 -c 4 -q 192.168.16.156 | egrep 'packet|rtt'\r"
+    expect "received,"
+    expect -re "loss" {
+        set CAV_CARD1 $expect_out(buffer)
+    }
+}
+
+expect "root@*>" {
+    exp_send "ping -s 1400 -c 4 -q 192.168.16.172 | egrep 'packet|rtt'\r"
+    expect "received,"
+    expect -re "loss" {
+        set CAV_CARD2 $expect_out(buffer)
+    }
+}
+
+############################################
+############### ISPAN Card ##################
+############################################
+send "\r"
+expect "root@*>" {
+    exp_send "ping -s 1400 -c 4 -q 192.168.16.144 | egrep 'packet|rtt'\r"
+    expect "received,"
+    expect -re "loss" {
+        set ISPAN_CARD $expect_out(buffer)
+    }
+}
+
+############################################
+############## Management Cards #############
+############################################
+send "\r"
+expect "root@*>" {
+    match_max 10000
+    send "stty raw\r"
+    expect "root@*>"
+
+    #Get Current Date
+    send "date\r"
+    expect "root@*>"
+
+    #Check to see if the debug.sh script is currently running
+    send "ps ho pid -C sisp_debug\r"
+    expect -re ".*\n\[0-9]+.*root@.*>" {
+        set MGC1_CSPS_ERROR "**An error occurred while trying to run debug.sh\n**Another user may be executing the script."
+        send_user "\n$MGC_CSPS_ERROR\n\n"
+    } "root@*>" {
+        #Get Peer State Connection Status
+        send "pushd /opt/asp/bin/ >/dev/null 2>&1\r"
+        expect "root@*>"
+        send "./debug.sh\r"
+        expect "*Test*" {
+            send "setc 5\r"
+            expect "*CallControlCardI0*" {
+                send "setc UECCCI0\r"
+                expect "*DEFAULT*" {
+                    send "printCNStatus\r"
+                    expect -re ".*(CSCN.*)\n.*(PSCN\[^\n]*).*$" {
+                       set MGC_CSCN_STATE5 $expect_out(1,string)
+                       set MGC_PSCN_STATE5 $expect_out(2,string)
+                    }
+                    send "end\r"
+                }
+                send "end\r"
+            }
+            send "setc 6\r"
+            expect "*CallControlCardI1*" {
+                send "setc UECCCI1\r"
+                expect "*DEFAULT*" {
+                    send "printCNStatus\r"
+                    expect -re ".*(CSCN.*)\n.*(PSCN\[^\n]*).*$" {
+                       set MGC_CSCN_STATE6 $expect_out(1,string)
+                       set MGC_PSCN_STATE6 $expect_out(2,string)
+                    }
+                    send "bye\r"
+                    expect "root@*>"                
+                }
+            } "Invalid slot number" {
+                set MGC2_CSPS_ERROR "**An \"Invalid slot number\" error occurred while running debug.sh."
+                send_user "\n$MGC_CSPS_ERROR\n\n"
+                
+                send "bye\r"
+                expect "root@*>"            
+        }
+        send "popd >/dev/null 2>&1\r"
+        expect "root@*>"
+    }
+    
+    set MGC1_PROCESS_TIME [process_time]
+    set MGC1_PROCESS_MEMORY [process_memory]
+    set MGC1_ROOTFS_SPACE [root_filespace]
+    set MGC1_SPACE_PERCENT [partition_percent_used $MGC_SPACE_PERCENT_THRESHOLD]
+    set MGC1_DISK_USAGE [root_disk_usage]
+    set MGC1_FREE_MEMORY [free_memory]
+
+    #Get Disk Usage on Var Log Directory
+    send "du -sh /var/log/.\r"
+    expect "root@*>"
+    send "du -sh /var/log/*\r"
+    expect "root@*>"
+
+    #Get OMCR Connectivity
+    send "netstat apn|grep \":3052\"\r"
+    expect -re "(tcp\[^\n]*).*root@.*>" {
+       set MGC1_OMCR_CONNECTED $expect_out(1,string)
+    }
+
+    #Get the last 5 records in the TcpCore snapshot for Cav1 and parse out the 15th and 16th columns
+    send "tail -n 5 $TCPCORE_FILEPATH_CAV1 | awk -F\",\" '{print \$14,\$15,\$16,\$17}'\r"
+    expect -re ".*\n\"\[0-9]+\" \"(\[0-9]+)\" \"(\[0-9]+)\" \"\[0-9]+\".*root@*>" {
+       set MGC_PACKET_BUFFER_CAV1 $expect_out(1,string)
+       set MGC_WQE_BUFFER_CAV1 $expect_out(2,string)
+    } "root@*>" {}
+
+    #Get the last 5 records in the TcpCore snapshot for Cav2 and parse out the 15th and 16th columns
+    send "tail -n 5 $TCPCORE_FILEPATH_CAV2 | awk -F\",\" '{print \$14,\$15,\$16,\$17}'\r"
+    expect -re ".*\n\"\[0-9]+\" \"(\[0-9]+)\" \"(\[0-9]+)\" \"\[0-9]+\".*root@*>" {
+       set MGC_PACKET_BUFFER_CAV2 $expect_out(1,string)
+       set MGC_WQE_BUFFER_CAV2 $expect_out(2,string)
+    } "root@*>" {}
+
+    #Get the memory usage of the MF process for Cav1 from MessageForwarder.csv snapshot 19th column
+    exp_send "tail -n 1 $MF_FILEPATH_CAV1 | awk -F\",\" '{print \$33}' | sed 's\/\x22\/\/g'\r"
+    expect -re ".*\n(.*)\n.*root@*>" {
+        set MF_MEM_USAGE_CAV1 $expect_out(1,string)
+    } "root@*>" {}
+    send_user "value is $MF_MEM_USAGE_CAV1"
+
+    #Get the memory usage of the MF process for Cav2 from MessageForwarder.csv snapshot 19th column
+    exp_send "tail -n 1 $MF_FILEPATH_CAV2 | awk -F\",\" '{print \$33}' | sed 's\/\x22\/\/g'\r"
+    expect -re ".*\n(.*)\n.*root@*>" {
+        set MF_MEM_USAGE_CAV2 $expect_out(1,string)
+    } "root@*>" {}
+    send_user "value is $MF_MEM_USAGE_CAV2"
+
+send "\r"
+expect "root@*>" {
+    match_max 10000
+    send "stty raw\r"
+    expect "root@*>"
+
+    #Get Current Date
+    send "date\r"
+    expect "root@*>"
+    set MGC1_LDAVG1 [LDAVG1]
+    set MGC1_LDAVG5 [LDAVG5]
+    set MGC1_LDAVG15 [LDAVG15]
+
+    #Log into Management Card 2
+    send "ssh 192.168.16.2\r"
+
+   #Get OMCR Connectivity
+    expect "root@*>" {
+    send "netstat apn|grep \":3052\"\r"
+    expect -re "(tcp\[^\n]*).*root@.*>" {
+       set MGC2_OMCR_CONNECTED $expect_out(1,string)
+    }
+
+    set MGC2_PROCESS_TIME [process_time]
+    set MGC2_PROCESS_MEMORY [process_memory]
+    set MGC2_ROOTFS_SPACE [root_filespace]
+    set MGC2_SPACE_PERCENT [partition_percent_used $MGC_SPACE_PERCENT_THRESHOLD]
+    set MGC2_DISK_USAGE [root_disk_usage]
+    set MGC2_FREE_MEMORY [free_memory]
+    set MGC2_LDAVG1 [LDAVG1]
+    set MGC2_LDAVG5 [LDAVG5]
+    set MGC2_LDAVG15 [LDAVG15]
+
+    send "exit\r"
+    expect "*closed."
+}
+
+
+############################################
+############### Stacks Cards #################
+############################################
+    #Log into Stacks Card 1
+    send "ssh 192.168.16.3\r"
+    expect "root@*>" {
+        set SC1_PROCESS_TIME [process_time]
+        set SC1_PROCESS_MEMORY [process_memory]
+        set SC1_SPACE_PERCENT [partition_percent_used $SC_SPACE_PERCENT_THRESHOLD]
+        set SC1_DISK_USAGE [root_disk_usage]
+        set SC1_FREE_MEMORY [free_memory]
+        set SC1_LDAVG1 [LDAVG1]
+        set SC1_LDAVG5 [LDAVG5]
+        set SC1_LDAVG15 [LDAVG15]
+
+        send "exit\r"
+        expect "*closed."
+    }
+
+    #Log into Stacks Card 2
+    send "ssh 192.168.16.4\r"
+    expect "root@*>" {
+        set SC2_PROCESS_TIME [process_time]
+        set SC2_PROCESS_MEMORY [process_memory]
+        set SC2_SPACE_PERCENT [partition_percent_used $SC_SPACE_PERCENT_THRESHOLD]
+        set SC2_DISK_USAGE [root_disk_usage]
+        set SC2_FREE_MEMORY [free_memory]
+        set SC2_LDAVG1 [LDAVG1]
+        set SC2_LDAVG5 [LDAVG5]
+        set SC2_LDAVG15 [LDAVG15]
+
+        send "exit\r"
+        expect "*closed."
+    }
+
+
+############################################
+############ Call Control Cards ################
+############################################
+    #Log into Call Control Card 1
+    send "ssh 192.168.16.5\r"
+    expect "root@*>" {
+        send "echo -e \"setc 5\nsetc UMRI0\numrCliManager UMR_GET_ALL_ACTIVE_AP_LINKS\nbye\" > $AC_HEALTHCHECK_CMDFILE\r"
+        expect "root@*>"
+        send "ps ho pid -C sisp_debug\r"
+        expect -re ".*\n\[0-9]+.*root@.*>" {
+            set MGC_CSPS_ERROR "**An error occurred while trying to run debug.sh\n**Another user may be executing the script."
+            send_user "\n$MGC_CSPS_ERROR\n\n"
+        } "root@*>" {
+            #Get Peer State Connection Status
+            send "/opt/asp/bin/debug.sh < $AC_HEALTHCHECK_CMDFILE | grep \"3GAP COUNT\"\r"
+            expect -re ".*COUNT: (\[0-9]*).*root@*>" {
+                set CCC1_SOIP_COUNT $expect_out(1,string)
+            }
+        }
+
+        send "rm $AC_HEALTHCHECK_CMDFILE\r"
+        expect "root@*>"     
+        set CCC1_PROCESS_TIME [process_time]
+        set CCC1_PROCESS_MEMORY [process_memory]
+        set CCC1_SPACE_PERCENT [partition_percent_used $CCC_SPACE_PERCENT_THRESHOLD]
+        set CCC1_DISK_USAGE [root_disk_usage]
+        set CCC1_FREE_MEMORY [free_memory]
+        set CCC1_LDAVG1 [LDAVG1]
+        set CCC1_LDAVG5 [LDAVG5]
+        set CCC1_LDAVG15 [LDAVG15]
+        
+        send "exit\r"
+        expect "*closed."
+    }
+
+    #Log into Call Control Card 2
+    send "ssh 192.168.16.6\r"
+    expect "root@*>" {
+        send "echo -e \"setc 5\nsetc UMRI0\numrCliManager UMR_GET_ALL_ACTIVE_AP_LINKS\nbye\" > $AC_HEALTHCHECK_CMDFILE\r"
+        expect "root@*>"
+        send "ps ho pid -C sisp_debug\r"
+        expect -re ".*\n\[0-9]+.*root@.*>" {
+            set MGC_CSPS_ERROR "**An error occurred while trying to run debug.sh\n**Another user may be executing the script."
+            send_user "\n$MGC_CSPS_ERROR\n\n"
+        } "root@*>" {
+            #Get Peer State Connection Status
+            send "/opt/asp/bin/debug.sh < $AC_HEALTHCHECK_CMDFILE | grep \"3GAP COUNT\"\r"
+            expect -re ".*COUNT: (\[0-9]*).*root@*>" {
+                set CCC2_SOIP_COUNT $expect_out(1,string)
+            }
+        }
+
+        send "rm $AC_HEALTHCHECK_CMDFILE\r"
+        expect "root@*>"     
+        set CCC2_PROCESS_TIME [process_time]
+        set CCC2_PROCESS_MEMORY [process_memory]
+        set CCC2_SPACE_PERCENT [partition_percent_used $CCC_SPACE_PERCENT_THRESHOLD]
+        set CCC2_DISK_USAGE [root_disk_usage]
+        set CCC2_FREE_MEMORY [free_memory]
+        set CCC2_LDAVG1 [LDAVG1]
+        set CCC2_LDAVG5 [LDAVG5]
+        set CCC2_LDAVG15 [LDAVG15]
+        
+        send "exit\r"
+        expect "*closed."
+    }
+
+###########################################
+
+    send "exit\r"
+    expect "*closed."
+} timeout {
+    send_user "** An error occurred - login timeout.\n"
+    set HEALTHCHECK_STATUS "0"
+    exit 1
+}
+log_file
+
+set ldavg_sum [open "$AC_LDAVG_LOG" a+]
+puts $ldavg_sum "$tc_device_hostname$,$TS_DATE,$TS_TIME,$MGC1_LDAVG1,$MGC1_LDAVG5,$MGC1_LDAVG15,$MGC2_LDAVG1,$MGC2_LDAVG5,$MGC2_LDAVG15,$SC1_LDAVG1,$SC1_LDAVG5,$SC1_LDAVG15,$SC2_LDAVG1,$SC2_LDAVG5,$SC2_LDAVG15,$CCC1_LDAVG1,$CCC1_LDAVG5,$CCC1_LDAVG15,$CCC2_LDAVG1,$CCC2_LDAVG5,$CCC2_LDAVG15"
+close $ldavg_sum
+
+set summary [open "$AC_HEALTHCHECK" w+]
+
+proc eval_process_time {PROCESS_TIME} {
+    global summary PROCESS_TIME_THRESHOLD STATUS_COUNT
+    puts -nonewline $summary "Start time of ASP processes are approximately the same ........... "
+    if { $PROCESS_TIME == "-1" } {
+        puts $summary "Not Available"
+        #set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+    } else {
+        if { $PROCESS_TIME < $PROCESS_TIME_THRESHOLD } {
+            puts $summary "Passed"
+            set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+        } else {
+            puts $summary "Failed\n**The difference between one or more ASP process start times falls outside the $PROCESS_TIME_THRESHOLD second threshold\n"
+            #set HEALTHCHECK_STATUS "0"
+            set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+        }
+    }
+}
+
+proc eval_process_memory {COUNT_OVER_THRESHOLD} {
+    global summary PROCESS_MEMORY_THRESHOLD STATUS_COUNT
+    puts -nonewline $summary [format "Memory usage of all processes is below %.2fM ................... " [expr $PROCESS_MEMORY_THRESHOLD / 1024.00]]
+    if { $COUNT_OVER_THRESHOLD == "-1" } {
+        puts $summary "Not Available"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+    } else {
+        if { $COUNT_OVER_THRESHOLD == 0 } {
+            puts $summary "Passed"
+            set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+        } else {
+            puts $summary [format "Failed\n**One or more processes has exceeded the %.2fM memory threshold" [expr $PROCESS_MEMORY_THRESHOLD / 1024.00]]
+            set HEALTHCHECK_STATUS "0"
+            set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+        }
+    }
+}
+
+proc eval_space_percent {COUNT_OVER_THRESHOLD PERCENT_THRESHOLD} {
+    global summary STATUS_COUNT
+    set dot ""
+    if { $PERCENT_THRESHOLD < 10 } { set dot "." }
+    puts -nonewline $summary [format "Percent disk space utilization for each partition is below $PERCENT_THRESHOLD%% ...%s " $dot]
+    if { $COUNT_OVER_THRESHOLD == "-1" } {
+        puts $summary "Not Available"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+    } else {
+        if { $COUNT_OVER_THRESHOLD == 0 } {
+            puts $summary "Passed"
+           set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+        } else {
+            puts $summary "Failed\n**One or more filesystem partitions have exceeded the $PERCENT_THRESHOLD% threshold"
+            set HEALTHCHECK_STATUS "0"
+            set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+        }
+    }
+}
+
+proc eval_disk_usage {DISK_USAGE} {
+    global summary DISK_USAGE_THRESHOLD STATUS_COUNT
+    puts -nonewline $summary [format "Total disk usage is below %.2fG .................................. " [expr $DISK_USAGE_THRESHOLD / 1024.00 / 1024.00]]
+    if { $DISK_USAGE == "-1" } {
+        puts $summary "Not Available"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+    } else {
+        if { $DISK_USAGE < $DISK_USAGE_THRESHOLD } {
+            puts $summary "Passed"
+            set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+        } else {
+            puts $summary [format "Failed\n**Total disk usage is currently at %.2fG\n" [expr $DISK_USAGE / 1024.00 / 1024.00]]
+            set HEALTHCHECK_STATUS "0"
+            set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+        }
+    }
+}
+
+proc eval_free_memory {FREE_MEMORY FREE_MEMORY_THRESHOLD} {
+    global summary STATUS_COUNT
+    puts -nonewline $summary [format "Total available free memory (free + cache) is above %.2fG ........ " [expr $FREE_MEMORY_THRESHOLD / 1024.00 / 1024.00]]
+    if { $FREE_MEMORY == "-1" } {
+        puts $summary "Not Available"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+    } else {
+        if { $FREE_MEMORY > $FREE_MEMORY_THRESHOLD } {
+            puts $summary "Passed"
+            set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+        } else {
+            puts $summary [format "Failed\n**Total free memory (free + cache) is currently at %.2fG\n" [expr $FREE_MEMORY / 1024.00 / 1024.00]]
+            set HEALTHCHECK_STATUS "0"
+            set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+        }
+    }
+}
+puts $summary "############################################"
+puts $summary "# $tc_device_hostname$ Health Check Summary"
+puts $summary "############################################"
+puts $summary "MEMORY"
+puts $summary [format "MGC1 free + cache: %.2fG" [expr $MGC1_FREE_MEMORY / 1024.00 / 1024.00]]
+puts $summary [format "MGC2 free + cache: %.2fG" [expr $MGC2_FREE_MEMORY / 1024.00 / 1024.00]]
+puts $summary [format " SC1 free + cache: %.2fG" [expr $SC1_FREE_MEMORY / 1024.00 / 1024.00]]
+puts $summary [format " SC2 free + cache: %.2fG" [expr $SC2_FREE_MEMORY / 1024.00 / 1024.00]]
+puts $summary [format "CCC1 free + cache: %.2fG" [expr $CCC1_FREE_MEMORY / 1024.00 / 1024.00]]
+puts $summary [format "CCC2 free + cache: %.2fG" [expr $CCC2_FREE_MEMORY / 1024.00 / 1024.00
+puts $summary " "
+puts $summary [format "Current Cavium 1 MF memory usage: %.2fM" [expr $MF_MEM_USAGE_CAV1 / 1000.00 / 1000.00]]
+puts $summary [format "Current Cavium 2 MF memory usage: %.2fM" [expr $MF_MEM_USAGE_CAV2 / 1000.00 / 1000.00]]
+
+puts $summary "\nCS\\PC Connections"
+if { $MGC_CSPS_ERROR == "-1" } {
+    puts $summary "Card 5 - $MGC_CSCN_STATE5"
+    puts $summary "Card 5 - $MGC_PSCN_STATE5"
+    puts $summary "Card 6 - $MGC_CSCN_STATE6"
+    puts $summary "Card 6 - $MGC_PSCN_STATE6"
+} else {
+    puts $summary "$MGC_CSPS_ERROR"
+}
+
+puts $summary "\nSNAPSHOT OF SOIP CONNECTED"
+puts -nonewline $summary "SOIP connected CallControlCard1: "
+if { $CCC1_SOIP_COUNT == "-1" } {
+    puts $summary "NA"
+} else {
+    puts $summary "$CCC1_SOIP_COUNT"
+}
+puts $summary "SOIP connected CallControlCard2: "
+if { $CCC1_SOIP_COUNT == "-1" } {
+    puts $summary "NA"
+} else {
+    puts $summary "$CCC2_SOIP_COUNT"
+}
+
+puts $summary "\nCARD PINGS"
+puts -nonewline $summary "Cavium Card 1: "
+if {$CAV_CARD1 == "-1" } {
+    puts $summary "NA"
+} else {
+    puts $summary "$CAV_CARD1"
+}
+
+puts -nonewline $summary "Cavium Card 2: "
+if {$CAV_CARD2 == "-1" } {
+    puts $summary "NA"
+} else {
+    puts $summary "$CAV_CARD2"
+}
+
+puts -nonewline $summary "ISPAN Card:    "
+if {$ISPAN_CARD == "-1" } {
+    puts $summary "NA"
+} else {
+    puts $summary "$ISPAN_CARD"
+}
+
+puts $summary "\n\n############################################"
+puts $summary "# Management Card 1 Diagnostic Checks"
+puts $summary "############################################"
+puts -nonewline $summary "Card 5 CSCN Connection State is active ........................... "
+if { $MGC_CSCN_STATE5 == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if {[ regexp "PEER_STATE_ACTIVE" $MGC_CSCN_STATE5 ]} {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**The CSCN Peer State is currently not ACTIVE: $MGC_CSCN_STATE5\n"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary "Card 5 PSCN Connection State is active ........................... "
+if { $MGC_PSCN_STATE5 == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if {[ regexp "PEER_STATE_ACTIVE" $MGC_PSCN_STATE5 ]} {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**The PSCN Peer State is currently not ACTIVE: $MGC_PSCN_STATE5\n"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary "Card 6 CSCN Connection State is active ........................... "
+if { $MGC_CSCN_STATE6 == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if {[ regexp "PEER_STATE_ACTIVE" $MGC_CSCN_STATE6 ]} {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**The CSCN Peer State is currently not ACTIVE: $MGC_CSCN_STATE6\n"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary "Card 6 PSCN Connection State is active ........................... "
+if { $MGC_PSCN_STATE6 == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if {[ regexp "PEER_STATE_ACTIVE" $MGC_PSCN_STATE6 ]} {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**The PSCN Peer State is currently not ACTIVE: $MGC_PSCN_STATE6\n"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+
+puts -nonewline $summary "MGC1 OMCR Connection State is established ........................ "
+if { $MGC_OMCR_CONNECTED == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if {[ regexp "ESTABLISHED" $MGC1_OMCR_CONNECTED ]} {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**An established tcp connection for the OMCR is not available.\n$MGC_OMCR_CONNECTED\n"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary [format "Available disk space of the rootfs partition is above %.2fG ...... " [expr $ROOTFS_SPACE_THRESHOLD / 1024.00 / 1024.00]]
+if { $MGC1_ROOTFS_SPACE == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if { $MGC1_ROOTFS_SPACE > $ROOTFS_SPACE_THRESHOLD } {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary [format "Failed\n**The rootfs filesystem is currently at %.2fG\n" [expr $MGC1_ROOTFS_SPACE / 1024.00 / 1024.00]]
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary "The CAVIUM 1 Free Buffers (Packet) is above the $PACKET_BUFFER_THRESHOLD threshold ... "
+if { $MGC_PACKET_BUFFER_CAV1 == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if { $MGC_PACKET_BUFFER_CAV1 > $PACKET_BUFFER_THRESHOLD } {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**The CAVIUM 1 Free Buffers (Packet) is currently at $MGC_PACKET_BUFFER_CAV1\n"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary "The CAVIUM 1 Free Buffers (WQE) is above the $WQE_BUFFER_THRESHOLD threshold ...... "
+if { $MGC_WQE_BUFFER_CAV1 == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if { $MGC_WQE_BUFFER_CAV1 > $WQE_BUFFER_THRESHOLD } {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**The CAVIUM 1 Free Buffers (WQE) is currently at $MGC_WQE_BUFFER_CAV1\n"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary "The CAVIUM 2 Free Buffers (Packet) is above the $PACKET_BUFFER_THRESHOLD threshold ... "
+if { $MGC_PACKET_BUFFER_CAV2 == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if { $MGC_PACKET_BUFFER_CAV2 > $PACKET_BUFFER_THRESHOLD } {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**The CAVIUM 1 Free Buffers (Packet) is currently at $MGC_PACKET_BUFFER_CAV2\n"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary "The CAVIUM 2 Free Buffers (WQE) is above the $WQE_BUFFER_THRESHOLD threshold ...... "
+if { $MGC_WQE_BUFFER_CAV2 == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if { $MGC_WQE_BUFFER_CAV2 > $WQE_BUFFER_THRESHOLD } {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**The CAVIUM 2 Free Buffers (WQE) is currently at $MGC_WQE_BUFFER_CAV2\n"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary "The CAVIUM 1 MF memory usage is below the current threshold ...... "
+if { $MF_MEM_USAGE_CAV1 == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if { $MF_MEM_USAGE_CAV1 < $MF_MEM_THRESHOLD } {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary [format "Failed\n**The MF memory usage is currently at %.2fG\n" [expr $MF_MEM_USAGE_CAV1 / 1000.00 / 1000.00]]
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary "The CAVIUM 2 MF memory usage is below the current threshold ...... "
+if { $MF_MEM_USAGE_CAV2 == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if { $MF_MEM_USAGE_CAV2 < $MF_MEM_THRESHOLD } {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary [format "Failed\n**The MF memory usage is currently at %.2fG\n" [expr $MF_MEM_USAGE_CAV2 / 1000.00 / 1000.00]]
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+eval_process_time $MGC1_PROCESS_TIME
+eval_process_memory $MGC1_PROCESS_MEMORY
+eval_space_percent $MGC1_SPACE_PERCENT $MGC_SPACE_PERCENT_THRESHOLD
+eval_disk_usage $MGC1_DISK_USAGE
+eval_free_memory $MGC1_FREE_MEMORY $MGC_MEMORY_THRESHOLD
+
+puts $summary "\n\n############################################"
+puts $summary "# Management Card 2 Diagnostic Checks"
+puts $summary "############################################"
+puts -nonewline $summary "MGC2 OMCR Connection State is established ........................ "
+if { $MGC_OMCR_CONNECTED == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if {[ regexp "ESTABLISHED" $MGC2_OMCR_CONNECTED ]} {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**An established tcp connection for the OMCR is not available.\n$MGC_OMCR_CONNECTED\n"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary [format "Available disk space of the rootfs partition is above %.2fG ...... " [expr $ROOTFS_SPACE_THRESHOLD / 1024.00 / 1024.00]]
+if { $MGC2_ROOTFS_SPACE == "-1" } {
+    puts $summary "Not Available"
+    set HEALTHCHECK_STATUS "0"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if { $MGC2_ROOTFS_SPACE > $ROOTFS_SPACE_THRESHOLD } {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary [format "Failed\n**The rootfs filesystem is currently at %.2fG\n" [expr $MGC2_ROOTFS_SPACE / 1024.00 / 1024.00]]
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+eval_process_time $MGC2_PROCESS_TIME
+eval_process_memory $MGC2_PROCESS_MEMORY
+eval_space_percent $MGC2_SPACE_PERCENT $MGC_SPACE_PERCENT_THRESHOLD
+eval_disk_usage $MGC2_DISK_USAGE
+eval_free_memory $MGC2_FREE_MEMORY $MGC_MEMORY_THRESHOLD
+
+puts $summary "\n\n############################################"
+puts $summary "# Stacks Card 1 Diagnostic Checks "
+puts $summary "############################################"
+eval_process_time $SC1_PROCESS_TIME
+eval_process_memory $SC1_PROCESS_MEMORY
+eval_space_percent $SC1_SPACE_PERCENT $SC_SPACE_PERCENT_THRESHOLD
+eval_disk_usage $SC1_DISK_USAGE
+eval_free_memory $SC1_FREE_MEMORY $SC_MEMORY_THRESHOLD
+
+puts $summary "\n\n############################################"
+puts $summary "# Stacks Card 2 Diagnostic Checks "
+puts $summary "############################################"
+eval_process_time $SC2_PROCESS_TIME
+eval_process_memory $SC2_PROCESS_MEMORY
+eval_space_percent $SC2_SPACE_PERCENT $SC_SPACE_PERCENT_THRESHOLD
+eval_disk_usage $SC2_DISK_USAGE
+eval_free_memory $SC2_FREE_MEMORY $SC_MEMORY_THRESHOLD
+
+
+puts $summary "\n\n############################################"
+puts $summary "# Call Control Card 1 Diagnostic Checks "
+puts $summary "############################################"
+eval_process_time $CCC1_PROCESS_TIME
+eval_process_memory $CCC1_PROCESS_MEMORY
+eval_space_percent $CCC1_SPACE_PERCENT $CCC_SPACE_PERCENT_THRESHOLD
+eval_disk_usage $CCC1_DISK_USAGE
+eval_free_memory $CCC1_FREE_MEMORY $CCC_MEMORY_THRESHOLD
+
+puts $summary "\n\n############################################"
+puts $summary "# Call Control Card 2 Diagnostic Checks "
+puts $summary "############################################"
+eval_process_time $CCC2_PROCESS_TIME
+eval_process_memory $CCC2_PROCESS_MEMORY
+eval_space_percent $CCC2_SPACE_PERCENT $CCC_SPACE_PERCENT_THRESHOLD
+eval_disk_usage $CCC2_DISK_USAGE
+eval_free_memory $CCC2_FREE_MEMORY $CCC_MEMORY_THRESHOLD
+
+
+puts $summary "\n\n############################################"
+puts $summary "# Additional Card Diagnostic Checks "
+puts $summary "############################################"
+puts -nonewline $summary "Cavium Card 1 ping results: ...................................... "
+if {$CAV_CARD1=="-1"} {
+    puts $summary "Not Available"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if { $CAV_CARD1==$PING_PASS} {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**Cavium Card 2 failed 1 or more pings and may not be reachable.\n"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+puts -nonewline $summary "Cavium Card 2 ping results: ...................................... "
+if {$CAV_CARD2=="-1"} {
+    puts $summary "Not Available"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if { $CAV_CARD2==$PING_PASS} {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**Cavium Card 2 failed 1 or more pings and may not be reachable.\n"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+
+puts -nonewline $summary "ISPAN Card ping results: ......................................... "
+if {$ISPAN_CARD=="-1"} {
+    puts $summary "Not Available"
+    set STATUS_COUNT(na) [expr $STATUS_COUNT(na) + 1]
+} else {
+    if { $ISPAN_CARD==$PING_PASS} {
+        puts $summary "Passed"
+        set STATUS_COUNT(pass) [expr $STATUS_COUNT(pass) + 1]
+    } else {
+        puts $summary "Failed\n**The ISPAN Card failed 1 or more pings and may not be reachable.\n"
+        set HEALTHCHECK_STATUS "0"
+        set STATUS_COUNT(fail) [expr $STATUS_COUNT(fail) + 1]
+    }
+}
+
+
+seek $summary 0
+while {1} {
+    set line [gets $summary]
+    if {[eof $summary]} {
+        break
+    }
+    puts $line
+}
+
+puts $summary "\n"
+close $summary
+
+exec cat $AC_HEALTHCHECK_LOG >> $AC_HEALTHCHECK
+exec rm $AC_HEALTHCHECK_LOG
+
+if { $EMAIL_ONLY_ON_FAILURE == "0" || $HEALTHCHECK_STATUS == "0" } {
+    exec mailx -s "$tc_device_hostname$ Health Check (Pass:$STATUS_COUNT(pass) Fail:$STATUS_COUNT(fail) NA:$STATUS_COUNT(na))" -r nobody@cisco.com $EMAIL_TO < $AC_HEALTHCHECK
+}
