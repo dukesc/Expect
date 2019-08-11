@@ -1,0 +1,40 @@
+### RDU replication check ###
+
+# List of email addresses to send the WEM status log
+# Put a space between multiple email addresses
+set EMAIL_TO "sample@sample.com"
+
+
+##### Variables #####
+set timeout 30
+set STATUS -1
+
+#### Log into RDU ####
+spawn -noecho ssh <user>@$tc_device_ip$
+expect -re "Are you sure you want to continue connecting" {
+   send "yes\r"
+}
+expect -re ".*assword:" {
+    send "$tc_device_password$\r"
+}
+expect -re ".$tc_device_hostname$." {
+   send "sudo su -\r"
+}
+expect -re ".*assword:" {
+    send "$tc_device_password$\r"
+}
+expect ".*#" {
+    send_user "Logged on Successfully\n"
+    match_max 10000
+    send "\r"
+    expect ".*#"
+    send "vxrlink -g replication_dg -r replication_rvg status rlk_10.184.243.70_replication_\r"
+    expect -re ".2016(.*)#" {
+        set STATUS $expect_out(buffer)
+    }
+send " exit\r"
+}
+
+send_user "Current Status - $STATUS\n"
+
+exec echo "Current replication status:\t$STATUS" | mailx -s "RDU ($tc_device_hostname$) Replication Status" -r noreply@cisco.com $EMAIL_TO
