@@ -1,0 +1,64 @@
+### CMHS Process Check ###
+#
+# Checks the timestamp of the sb-events.log and sends
+# an email alert to distribution if the file has
+# not been updated in the past 30 mins.
+#
+############# CONFIGURATION ################
+# Set to 1 to only email the alert if condition exists
+
+set EMAIL_ONLY_ON_ALERT "1"
+
+# List of email addresses to send the CMHS deadlock check
+# Put a space between multiple email addresses
+set EMAIL_TO "sample@sample.com"
+
+
+
+# Set the timeout execution in seconds
+set timeout 30
+
+##### Variables #####
+set MTIME -1
+set CURRTIME -1
+set DIFF -1
+set MINS -1
+
+#### Log into CMHS ####
+spawn -noecho ssh <user>@$tc_device_ip$
+expect -re "Are you sure you want to continue connecting" {
+   send "yes\r"
+}
+expect "ssword" {
+   send "$tc_device_password$\r"
+}
+
+expect -re ".*\$" {
+   match_max 100
+   send_user "\nLogged in Successfully\n"
+   send "\r"
+
+# Begin Check
+   send "stat -c %Y /opt/CSCOmhs/logs/sb-events.log\r"
+   expect -re "events.lo.*(\[0-9]{10}).*\$" {
+      set MTIME $expect_out(1,string)
+   }
+   send "date +%s\r"
+   expect -re "date.*(\[0-9]{10}).*\$" {
+      set CURRTIME $expect_out(1,string)
+   }
+   send "exit\r"
+   expect "*closed."
+} timeout {
+    send_user "** An error occurred - login timeout.\n"
+    exit 1
+}
+
+set DIFF [expr {$CURRTIME - $MTIME}]
+set MINS [expr {$DIFF / 60}]
+
+send_user "Current - $CURRTIME\nLog - $MTIME\nDiff - $DIFF\nMins - $MINS\n"
+
+if { $DIFF > 1800 || $EMAIL_ONLY_ON_ALERT == 0 } {
+   exec echo "Current timestamp of sb-events.log is $MINS minutes old" | mailx -s "$tc_device_hostname$ CMHS Process Warning" -r noreply@cisco.com $EMAIL_TO
+}
