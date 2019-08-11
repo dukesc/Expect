@@ -1,0 +1,58 @@
+# List of email addresses to send the load average log
+# Put a space between multiple email addresses
+set EMAIL_TO "sample@sample.com"
+
+
+set timeout 30
+set CSattempt -1
+set CSsuccess -1
+set PSattempt -1
+set PSsuccess -1
+
+#Get current date variable
+
+spawn ssh root@$tc_device_ip$
+expect "root@*>" {
+    send_user "Logged on Successfully\n"
+    send "date +%d%H%M\r"
+    expect -re "(\[0-9]\[0-9])(\[0-9]\[0-9])(\[0-9]+).*root@.*>" {
+        set DAY $expect_out(1,string)
+        set HOUR $expect_out(2,string)
+        set MIN $expect_out(3,string)
+        set MIN_1 [expr $MIN - 1]
+        set MIN_2 [format %02d $MIN_1]
+        set MSGDIR "/var/log/$DAY/$HOUR"
+    }
+    send_user "DAY $DAY, HOUR $HOUR, MIN $MIN MIN_2 $MIN_2\n"
+    send "grep \"FsmType=1 EventId=9 Domain=0\" $MSGDIR/messages.$MIN_2 | wc -l\r"
+    expect -re ".*\n(\[0-9]+).*root@.*>" {
+       set CSattempt $expect_out(1,string)
+    }
+    send "grep \"incr Current Active call by\" $MSGDIR/messages.$MIN_2 | grep \"domain .0.\" | wc -l\r"
+    expect -re ".*\n(\[0-9]+).*root@.*>" {
+       set CSsuccess $expect_out(1,string)
+    }
+    send "grep \"FsmType=1 EventId=9 Domain=1\" $MSGDIR/messages.$MIN_2 | wc -l\r"
+    expect -re ".*\n(\[0-9]+).*root@.*>" {
+       set PSattempt $expect_out(1,string)
+    }
+    send "grep \"incr Current Active call by\" $MSGDIR/messages.$MIN_2 | grep \"domain .1.\" | wc -l\r"
+    expect -re ".*\n(\[0-9]+).*root@.*>" {
+       set PSsuccess $expect_out(1,string)
+    }    
+}
+send "exit\r"
+set CSpercent [expr {(100 * $CSsuccess) / $CSattempt}]
+set PSpercent [expr {(100 * $PSsuccess) / $PSattempt}]
+send_user "\n"
+send_user "CSsuccess - $CSsuccess, CSattempt - $CSattempt, PSsuccess - $PSsuccess, PSattempt - $PSattempt\n"
+send_user "CS is $CSpercent% successful\n"
+send_user "PS is $PSpercent% successful\n"
+#send_user "$DAY_2\n"
+
+
+if {$CSpercent>="50" && $PSpercent>="90"} {
+    send_user "CS-PS setup ok"
+} else {
+    exec echo "CSsuccess - $CSsuccess, CSattempt - $CSattempt, PSsuccess - $PSsuccess, PSattempt - $PSattempt\nCS seccessful setups currently at $CSpercent%, PS seccessful setups currently at $PSpercent%" | mailx -s "$tc_device_hostname$ - CS/PS setups - FAIL" -r nobody@cisco.com $EMAIL_TO
+}
